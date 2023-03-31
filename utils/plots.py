@@ -376,7 +376,7 @@ def profile_idetection(start=0, stop=0, labels=(), save_dir=''):
 
 def plot_results_overlay(start=0, stop=0):  # from utils.plots import *; plot_results_overlay()
     # Plot training 'results*.txt', overlaying train and val losses
-    s = ['train', 'train', 'train', 'Precision', 'mAP@0.5', 'val', 'val', 'val', 'Recall', 'mAP@0.5:0.95']  # legends
+    s = ['train', 'train', 'train', 'Precision', 'mAP@0.3', 'val', 'val', 'val', 'Recall', 'mAP@0.3:0.7']  # legends
     t = ['Box', 'Objectness', 'Classification', 'P-R', 'mAP-F1']  # titles
     for f in sorted(glob.glob('results*.txt') + glob.glob('../../Downloads/results*.txt')):
         results = np.loadtxt(f, usecols=[2, 3, 4, 8, 9, 12, 13, 14, 10, 11], ndmin=2).T
@@ -402,7 +402,7 @@ def plot_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir=''):
     fig, ax = plt.subplots(2, 5, figsize=(12, 6), tight_layout=True)
     ax = ax.ravel()
     s = ['Box', 'Objectness', 'Classification', 'Precision', 'Recall',
-         'val Box', 'val Objectness', 'val Classification', 'mAP@0.5', 'mAP@0.5:0.95']
+         'val Box', 'val Objectness', 'val Classification', 'mAP@0.3', 'mAP@0.3:0.7']
     if bucket:
         # files = ['https://storage.googleapis.com/%s/results%g.txt' % (bucket, x) for x in id]
         files = ['results%g.txt' % x for x in id]
@@ -431,6 +431,60 @@ def plot_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir=''):
 
     ax[1].legend()
     fig.savefig(Path(save_dir) / 'results.png', dpi=200)
+
+
+def plot_map_epoch(start=0, stop=0, bucket='', id=(), labels=(), save_dir=''):
+    fig, ax = plt.subplots()
+    s = ['Box', 'Objectness', 'Classification', 'Precision', 'Recall',
+         'val Box', 'val Objectness', 'val Classification', 'mAP@0.3', 'mAP@0.3:0.7']
+    if bucket:
+        # files = ['https://storage.googleapis.com/%s/results%g.txt' % (bucket, x) for x in id]
+        files = ['results%g.txt' % x for x in id]
+        c = ('gsutil cp ' + '%s ' * len(files) + '.') % tuple('gs://%s/results%g.txt' % (bucket, x) for x in id)
+        os.system(c)
+    else:
+        files = list(Path(save_dir).glob('results*.txt'))
+    assert len(files), "No results.txt files found in %s, notthing to plot." % os.path.abspath(save_dir)
+    for fi, f in enumerate(files):
+        try:
+            results = np.loadtxt(f, usecols=[2, 3, 4, 8, 9, 12, 13, 14, 10, 11], ndmin=2).T
+            n = results.shape[1]
+            x = range(start, min(stop, n) if stop else n)
+            y1 = results[8, x]
+            label = labels[fi] if len(labels) else f.stem
+            ax.plot(x, y1, marker='.', linewidth=2, markersize=8, label="Mean Average Precison")
+            ax.set_title('Mean_Average_Precision')
+        except Exception as e:
+            print("Warning Plotting error for %s; %s" % (f, e))
+    
+    fig.savefig(Path(save_dir) / 'mAP.png', dpi=200)
+
+
+def plot_loss_epoch(start=0, stop=0, bucket='', id=(), labels=(), save_dir=''):
+    fig, ax = plt.subplots()
+    s = ['Box', 'Objectness', 'Classification', 'Precision', 'Recall',
+         'val Box', 'val Objectness', 'val Classification', 'mAP@0.3', 'mAP@0.3:0.7']
+    if bucket:
+        # files = ['https://storage.googleapis.com/%s/results%g.txt' % (bucket, x) for x in id]
+        files = ['results%g.txt' % x for x in id]
+        c = ('gsutil cp ' + '%s ' * len(files) + '.') % tuple('gs://%s/results%g.txt' % (bucket, x) for x in id)
+        os.system(c)
+    else:
+        files = list(Path(save_dir).glob('results*.txt'))
+    assert len(files), "No results.txt files found in %s, notthing to plot." % os.path.abspath(save_dir)
+    for fi, f in enumerate(files):
+        try:
+            results = np.loadtxt(f, usecols=[2, 3, 4, 8, 9, 12, 13, 14, 10, 11], ndmin=2).T
+            n = results.shape[1]
+            x = range(start, min(stop, n) if stop else n)
+            y1 = results[1, x]
+            label = labels[fi] if len(labels) else f.stem
+            ax.plot(x, y1, marker='.', linewidth=2, markersize=8, label="Loss")
+            ax.set_title('Objectness')
+        except Exception as e:
+            print("Warning Plotting error for %s; %s" % (f, e))
+    
+    fig.savefig(Path(save_dir) / 'Loss.png', dpi=200)
     
     
 def output_to_keypoint(output):
