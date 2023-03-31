@@ -1,0 +1,8 @@
+train: ../yolov7/data/train
+val: ../yolov7/data/valid
+test: ../yolov7/data/test
+# number of classes
+nc: 4
+
+# class names
+names: [ 'right_lower_limb', 'left_lower_limb', 'right_upper_limb', 'left_upper_limb' ]
