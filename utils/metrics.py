@@ -11,7 +11,7 @@ from . import general
 
 def fitness(x):
     # Model fitness as a weighted combination of metrics
-    w = [0.0, 0.0, 0.1, 0.9]  # weights for [P, R, mAP@0.5, mAP@0.5:0.95]
+    w = [0.0, 0.0, 0.1, 0.9]  # weights for [P, R, mAP@0.3, mAP@0.3:0.7]
     return (x[:, :4] * w).sum(1)
 
 
@@ -23,7 +23,7 @@ def ap_per_class(tp, conf, pred_cls, target_cls, v5_metric=False, plot=False, sa
         conf:  Objectness value from 0-1 (nparray).
         pred_cls:  Predicted object classes (nparray).
         target_cls:  True object classes (nparray).
-        plot:  Plot precision-recall curve at mAP@0.5
+        plot:  Plot precision-recall curve at mAP@0.3
         save_dir:  Plot save directory
     # Returns
         The average precision as computed in py-faster-rcnn.
@@ -39,7 +39,7 @@ def ap_per_class(tp, conf, pred_cls, target_cls, v5_metric=False, plot=False, sa
 
     # Create Precision-Recall curve and compute AP for each class
     px, py = np.linspace(0, 1, 1000), []  # for plotting
-    ap, p, r = np.zeros((nc, tp.shape[1])), np.zeros((nc, 1000)), np.zeros((nc, 1000))
+    ap, p, r, a = np.zeros((nc, tp.shape[1])), np.zeros((nc, 1000)), np.zeros((nc, 1000)), np.zeros((nc, 1000))
     for ci, c in enumerate(unique_classes):
         i = pred_cls == c
         n_l = (target_cls == c).sum()  # number of labels
@@ -59,12 +59,18 @@ def ap_per_class(tp, conf, pred_cls, target_cls, v5_metric=False, plot=False, sa
             # Precision
             precision = tpc / (tpc + fpc)  # precision curve
             p[ci] = np.interp(-px, -conf[i], precision[:, 0], left=1)  # p at pr_score
+            
+            fnc = (n_l + 1e-6)-tpc
+            
+            #Accuracy
+            accuracy = (tpc)/(tpc+fpc+fnc)
+            a[ci] = np.interp(-px, -conf[i], accuracy[:, 0], left=1)
 
             # AP from recall-precision curve
             for j in range(tp.shape[1]):
                 ap[ci, j], mpre, mrec = compute_ap(recall[:, j], precision[:, j], v5_metric=v5_metric)
                 if plot and j == 0:
-                    py.append(np.interp(px, mrec, mpre))  # precision at mAP@0.5
+                    py.append(np.interp(px, mrec, mpre))  # precision at mAP@0.3
 
     # Compute F1 (harmonic mean of precision and recall)
     f1 = 2 * p * r / (p + r + 1e-16)
@@ -73,9 +79,10 @@ def ap_per_class(tp, conf, pred_cls, target_cls, v5_metric=False, plot=False, sa
         plot_mc_curve(px, f1, Path(save_dir) / 'F1_curve.png', names, ylabel='F1')
         plot_mc_curve(px, p, Path(save_dir) / 'P_curve.png', names, ylabel='Precision')
         plot_mc_curve(px, r, Path(save_dir) / 'R_curve.png', names, ylabel='Recall')
+        plot_mc_curve(px, a, Path(save_dir) / 'Accuracy_curve.png', names, ylabel='Accuracy')
 
     i = f1.mean(0).argmax()  # max F1 index
-    return p[:, i], r[:, i], ap, f1[:, i], unique_classes.astype('int32')
+    return p[:, i], r[:, i], ap, f1[:, i], unique_classes.astype('int32'), a[:, i]
 
 
 def compute_ap(recall, precision, v5_metric=False):
@@ -198,7 +205,7 @@ def plot_pr_curve(px, py, ap, save_dir='pr_curve.png', names=()):
     else:
         ax.plot(px, py, linewidth=1, color='grey')  # plot(recall, precision)
 
-    ax.plot(px, py.mean(1), linewidth=3, color='blue', label='all classes %.3f mAP@0.5' % ap[:, 0].mean())
+    ax.plot(px, py.mean(1), linewidth=3, color='blue', label='all classes %.3f mAP@0.3' % ap[:, 0].mean())
     ax.set_xlabel('Recall')
     ax.set_ylabel('Precision')
     ax.set_xlim(0, 1)
