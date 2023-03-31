@@ -75,7 +75,7 @@ def test(data,
             data = yaml.load(f, Loader=yaml.SafeLoader)
     check_dataset(data)  # check
     nc = 1 if single_cls else int(data['nc'])  # number of classes
-    iouv = torch.linspace(0.5, 0.95, 10).to(device)  # iou vector for mAP@0.5:0.95
+    iouv = torch.linspace(0.3, 0.7, 20).to(device)  # iou vector for mAP@0.3:0.7
     niou = iouv.numel()
 
     # Logging
@@ -97,10 +97,10 @@ def test(data,
     confusion_matrix = ConfusionMatrix(nc=nc)
     names = {k: v for k, v in enumerate(model.names if hasattr(model, 'names') else model.module.names)}
     coco91class = coco80_to_coco91_class()
-    s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
-    p, r, f1, mp, mr, map50, map, t0, t1 = 0., 0., 0., 0., 0., 0., 0., 0., 0.
+    s = ('%20s' + '%12s' * 8) % ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.3', 'mAP@.3:.7', 'A', 'F1')
+    p, r, f1, mp, mr, map30, a, pa, pf1, map, t0, t1 = 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.
     loss = torch.zeros(3, device=device)
-    jdict, stats, ap, ap_class, wandb_images = [], [], [], [], []
+    jdict, stats, ap, ap_class, wandb_images, ap_t = [], [], [], [], [], []
     for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
         img = img.to(device, non_blocking=True)
         img = img.half() if half else img.float()  # uint8 to fp16/32
@@ -221,21 +221,22 @@ def test(data,
     # Compute statistics
     stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
     if len(stats) and stats[0].any():
-        p, r, ap, f1, ap_class = ap_per_class(*stats, plot=plots, v5_metric=v5_metric, save_dir=save_dir, names=names)
-        ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
-        mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
+        p, r, ap, f1, ap_class, a = ap_per_class(*stats, plot=plots, v5_metric=v5_metric, save_dir=save_dir, names=names)
+        ap_t = ap
+        ap30, ap = ap[:, 0], ap.mean(1)  # AP@0.3, AP@0.3:0.7
+        mp, mr, map30, map, pa, pf1 = p.mean(), r.mean(), ap30.mean(), ap.mean(), a.mean(), f1.mean()
         nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
     else:
         nt = torch.zeros(1)
 
     # Print results
-    pf = '%20s' + '%12i' * 2 + '%12.3g' * 4  # print format
-    print(pf % ('all', seen, nt.sum(), mp, mr, map50, map))
+    pf = '%20s' + '%12i' * 2 + '%12.3g' * 6  # print format
+    print(pf % ('all', seen, nt.sum(), mp, mr, map30, map, pa, pf1))
 
     # Print results per class
     if (verbose or (nc < 50 and not training)) and nc > 1 and len(stats):
         for i, c in enumerate(ap_class):
-            print(pf % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
+            print(pf % (names[c], seen, nt[c], p[i], r[i], ap30[i], ap[i], a[i], f1[i]))
 
     # Print speeds
     t = tuple(x / seen * 1E3 for x in (t0, t1, t0 + t1)) + (imgsz, imgsz, batch_size)  # tuple
@@ -272,7 +273,7 @@ def test(data,
             eval.evaluate()
             eval.accumulate()
             eval.summarize()
-            map, map50 = eval.stats[:2]  # update results (mAP@0.5:0.95, mAP@0.5)
+            map, map30 = eval.stats[:2]  # update results (mAP@0.3:0.7, mAP@0.3)
         except Exception as e:
             print(f'pycocotools unable to run: {e}')
 
@@ -284,7 +285,7 @@ def test(data,
     maps = np.zeros(nc) + map
     for i, c in enumerate(ap_class):
         maps[c] = ap[i]
-    return (mp, mr, map50, map, *(loss.cpu() / len(dataloader)).tolist()), maps, t
+    return (mp, mr, map30, map, *(loss.cpu() / len(dataloader)).tolist()), maps, t, ap_t
 
 
 if __name__ == '__main__':
