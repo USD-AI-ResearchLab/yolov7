@@ -294,7 +294,7 @@ def train(hyp, opt, device, tb_writer=None):
     nw = max(round(hyp['warmup_epochs'] * nb), 1000)  # number of warmup iterations, max(3 epochs, 1k iterations)
     # nw = min(nw, (epochs - start_epoch) / 2 * nb)  # limit warmup to < 1/2 of training
     maps = np.zeros(nc)  # mAP per class
-    results = (0, 0, 0, 0, 0, 0, 0)  # P, R, mAP@.5, mAP@.5-.95, val_loss(box, obj, cls)
+    results = (0, 0, 0, 0, 0, 0, 0)  # P, R, mAP@.3, mAP@.3-.7, val_loss(box, obj, cls)
     scheduler.last_epoch = start_epoch - 1  # do not move
     scaler = amp.GradScaler(enabled=cuda)
     compute_loss_ota = ComputeLossOTA(model)  # init loss class
@@ -444,7 +444,7 @@ def train(hyp, opt, device, tb_writer=None):
                     wandb_logger.log({tag: x})  # W&B
 
             # Update best mAP
-            fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
+            fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.3, mAP@.3-.7]
             if fi > best_fitness:
                 best_fitness = fi
             wandb_logger.end_epoch(best_result=best_fitness == fi)
